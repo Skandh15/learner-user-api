@@ -5,7 +5,9 @@ import java.util.List;
 import com.learner.LearnerUser.entity.User;
 import com.learner.LearnerUser.exception.ResourceNotFoundException;
 import com.learner.LearnerUser.repository.UserRepository;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +23,15 @@ public class UserController {
     @GetMapping
     public List<User> getAllUsers() {
         return this.userRepository.findAll();
+    }
+
+    @GetMapping("/getUserById")
+    public User getUserByUserId(@RequestParam long userId, HttpServletResponse response) {
+        User user = this.userRepository.findById(userId);
+        if (null == user) {
+            response.setStatus(HttpStatus.NO_CONTENT.value());
+        }
+        return user;
     }
 
     // get user by email and password
