@@ -1,117 +1,148 @@
 package com.learner.LearnerUser;
 
 import com.learner.LearnerUser.controller.UserByEmail;
+import com.learner.LearnerUser.controller.UserController;
 import com.learner.LearnerUser.entity.User;
 import com.learner.LearnerUser.repository.UserRepository;
-import org.junit.After;
-import org.junit.Assert;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.junit4.SpringRunner;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@RunWith(MockitoJUnitRunner.class)
 public class UserControllerTest {
 
-    @Autowired
-    private TestRestTemplate restTemplate;
-
-    @Autowired
+    @Mock
     private UserRepository userRepository;
 
-    private User testUser;
+    @InjectMocks
+    private UserController userController;
+
+    private User user1;
+    private User user2;
 
     @Before
     public void setUp() {
-        testUser = new User();
-        testUser.setFirstName("John");
-        testUser.setLastName("Doe");
-        testUser.setEmail("john.doe@example.com");
-        testUser.setPassword("password");
-        userRepository.save(testUser);
-    }
+        user1 = new User();
+        user1.setUserId(1L);
+        user1.setEmail("test1@test.com");
+        user1.setFirstName("Test1");
+        user1.setLastName("User1");
+        user1.setPassword("password1");
 
-    @After
-    public void tearDown() {
-        userRepository.delete(testUser);
+        user2 = new User();
+        user2.setUserId(2L);
+        user2.setEmail("test2@test.com");
+        user2.setFirstName("Test2");
+        user2.setLastName("User2");
+        user2.setPassword("password2");
     }
 
     @Test
     public void testGetAllUsers() {
-        ResponseEntity<List<User>> response = restTemplate.exchange("/api/users", HttpMethod.GET, null, new ParameterizedTypeReference<List<User>>() {
-        });
-        Assert.assertEquals(HttpStatus.OK.value(), response.getStatusCodeValue());
-        Assert.assertNotNull(response.getBody());
+        // given
+        List<User> userList = new ArrayList<>();
+        userList.add(user1);
+        userList.add(user2);
+        when(userRepository.findAll()).thenReturn(userList);
+
+        // when
+        List<User> result = userController.getAllUsers();
+
+        // then
+        assertEquals(2, result.size());
+        assertTrue(result.contains(user1));
+        assertTrue(result.contains(user2));
     }
 
     @Test
     public void testGetUserByUserId() {
-        ResponseEntity<User> response = restTemplate.getForEntity("/api/users/getUserById?userId=" + testUser.getUserId(), User.class);
-        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-        Assert.assertEquals(testUser.getUserId(), response.getBody().getUserId());
+        // given
+        when(userRepository.findById(1L)).thenReturn(user1);
+
+        // when
+        User result = userController.getUserByUserId(1L, null);
+
+        // then
+        assertEquals(user1, result);
     }
 
     @Test
     public void testGetUserByUserIdNotFound() {
-        ResponseEntity<User> response = restTemplate.getForEntity("/api/users/getUserById?userId=-1", User.class);
-        Assert.assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        // given
+        when(userRepository.findById(3L)).thenReturn(null);
+
+        // when
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        User result = userController.getUserByUserId(3L, response);
+
+        // then
+        assertNull(result);
+        verify(response, times(1)).setStatus(HttpStatus.NO_CONTENT.value());
+
+
     }
 
     @Test
-    public void testGetUserByEmailAndPassword() {
-        ResponseEntity<UserByEmail> response = restTemplate.getForEntity("/api/users/getDetails?email=" + testUser.getEmail() + "&password=" + testUser.getPassword(), UserByEmail.class);
-        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-        Assert.assertEquals(testUser.getEmail(), response.getBody().getEmail());
-        Assert.assertEquals(testUser.getFirstName(), response.getBody().getFirstName());
-        Assert.assertEquals(testUser.getLastName(), response.getBody().getLastName());
-        Assert.assertEquals(testUser.getUserId(), response.getBody().getId());
+    public void testGetUserById() {
+        // given
+        when(userRepository.findByEmailAndPassword("test1@test.com", "password1")).thenReturn(user1);
+
+        // when
+        UserByEmail result = userController.getUserById("test1@test.com", "password1");
+
+        // then
+        assertEquals(user1.getUserId(), result.getId());
+        assertEquals(user1.getFirstName(), result.getFirstName());
+        assertEquals(user1.getLastName(), result.getLastName());
+        assertEquals(user1.getEmail(), result.getEmail());
     }
 
-    @Test
-    public void testGetUserByEmailAndPasswordNotFound() {
-        ResponseEntity<Object> response = restTemplate.getForEntity("/api/users/getDetails?email=invalid-email&password=invalid-password", Object.class);
-        Assert.assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        Assert.assertFalse(Objects.requireNonNull(response.getBody()).toString().contains("Email or password is incorrect"));
+    @Test(expected = RuntimeException.class)
+    public void testGetUserByIdIncorrectCredentials() {
+        // given
+        when(userRepository.findByEmailAndPassword("test1@test.com", "password1")).thenReturn(null);
+
+        // when
+        userController.getUserById("test1@test.com", "password1");
+
+        // then
+        // expect RuntimeException to be thrown
     }
 
     @Test
     public void testCreateUser() {
-        User newUser = new User();
-        newUser.setFirstName("Jane");
-        newUser.setLastName("Doe");
-        newUser.setEmail("jane.doe@example.com");
-        newUser.setPassword("password");
-        HttpEntity<User> request = new HttpEntity<>(newUser);
-        ResponseEntity<User> response = restTemplate.exchange("/api/users", HttpMethod.POST, request, User.class);
-        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-        Assert.assertEquals(newUser.getEmail(), response.getBody().getEmail());
-        Assert.assertEquals(newUser.getFirstName(), response.getBody().getFirstName());
-        Assert.assertEquals(newUser.getLastName(), response.getBody().getLastName());
-        Assert.assertEquals(newUser.getPassword(), response.getBody().getPassword());
-        Assert.assertNotNull(response.getBody().getUserId());
-        userRepository.delete(response.getBody());
+        // given
+        when(userRepository.save(user1)).thenReturn(user1);
+
+        // when
+        User result = userController.createUser(user1);
+
+        // then
+        assertEquals(user1, result);
+        verify(userRepository, times(1)).save(user1);
     }
 
-    @Test
-    public void testCreateUserWithExistingEmail() {
-        HttpEntity<User> request = new HttpEntity<>(testUser);
-        ResponseEntity<Object> response = restTemplate.exchange("/api/users", HttpMethod.POST, request, Object.class);
-        Assert.assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        Assert.assertFalse(response.getBody().toString().contains("User with email " + testUser.getEmail() + " already exists"));
+    @Test(expected = RuntimeException.class)
+    public void testCreateUserAlreadyExists() {
+        // given
+        when(userRepository.findByEmail("test1@test.com")).thenReturn(user1);
+
+        // when
+        userController.createUser(user1);
+
+        // then
+        // expect RuntimeException to be thrown
     }
 
     @Test
