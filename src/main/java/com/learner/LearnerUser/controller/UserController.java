@@ -3,12 +3,10 @@ package com.learner.LearnerUser.controller;
 import java.util.List;
 
 import com.learner.LearnerUser.entity.User;
-import com.learner.LearnerUser.exception.ResourceNotFoundException;
 import com.learner.LearnerUser.repository.UserRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 
